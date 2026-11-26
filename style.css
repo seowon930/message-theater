@@ -187,8 +187,26 @@ fieldset { border: 0; padding: 0; margin: 0; }
 .controls button:hover { background: rgba(255,255,255,.18); }
 .controls .pos { font-variant-numeric: tabular-nums; font-size: 14px; min-width: 70px; text-align: center; opacity: .85; }
 .controls label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.controls select { border: 1px solid rgba(255,255,255,.35); background: rgba(0,0,0,.45); color: #fff; border-radius: 8px; padding: 6px 8px; font-size: 14px; }
+.controls select:disabled { opacity: .45; }
+.controls select option { color: #1B2130; background: #fff; }
+.controls .info { flex-basis: 100%; text-align: center; font-size: 13px; opacity: .8; }
+
+/* 한 화면에 여러 장: 엽서처럼 나란히 */
+.slide.group { inset: 8cqh 4.5cqw 9cqh; display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); gap: 3cqw; align-items: stretch; }
+@container (max-aspect-ratio: 1/1) { .slide.group { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(0, 1fr); } }
+.mcard { container-type: size; position: relative; min-width: 0; min-height: 0; border-radius: 2cqmin; overflow: hidden; color: var(--s-fg); text-shadow: var(--s-shadow);
+  box-shadow: 0 1.2cqmin 4cqmin rgba(0,0,0,.22); opacity: 0; animation: rise .9s cubic-bezier(.2,.7,.2,1) forwards; animation-delay: var(--d, 0s); }
+.instant .mcard { animation: none; opacity: 1; }
+.mc-in { position: absolute; inset: 0; padding: 9cqmin 8cqmin; display: flex; flex-direction: column; justify-content: center; gap: 5cqh; }
+.mc-in .s-to { font-size: 11cqmin; }
+.mc-in .s-from { font-size: 9.5cqmin; }
+.mcard[data-theme="blossom"] { background: linear-gradient(160deg, #FFF7FA, #FFE0EA); --s-fg: #4A1D33; --s-acc: #C2346A; --s-msg: var(--f-display); --s-shadow: none; }
+.mcard[data-theme="night"] { background: linear-gradient(160deg, #232B63, #0D1331); border: 1px solid rgba(255,255,255,.16); --s-fg: #F4F1FF; --s-acc: #F7D58B; --s-msg: var(--f-display); --s-shadow: 0 2px 12px rgba(0,0,0,.4); }
+.mcard[data-theme="chalk"] { background: radial-gradient(120% 100% at 50% 40%, #2C5544, #1A3A2D); border: 1.2cqmin solid #6B4A2E; --s-fg: #F3F1E6; --s-acc: #F5E27A; --s-msg: var(--f-hand); --s-shadow: 0 0 2px rgba(255,255,255,.3); }
+.mcard[data-theme="sky"] { background: linear-gradient(180deg, #F4FBFF, #D3ECFB); --s-fg: #13305A; --s-acc: #E0584E; --s-msg: var(--f-display); --s-shadow: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .c, .s-to, .s-from, .s-label, .s-title, .s-sub, .s-count, .s-join { animation: rise .01s forwards; animation-delay: 0s !important; }
+  .c, .s-to, .s-from, .s-label, .s-title, .s-sub, .s-count, .s-join, .mcard { animation: rise .01s forwards; animation-delay: 0s !important; }
   .slide { transition: opacity .3s; }
 }

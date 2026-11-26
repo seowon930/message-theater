@@ -1,5 +1,5 @@
 import { firebaseConfig } from "./config.js";
-import { Stage, THEMES, THEME_DOT, el } from "./stage.js";
+import { Stage, THEMES, THEME_DOT, el, groupDuration } from "./stage.js";
 
 const FB = "https://www.gstatic.com/firebasejs/10.14.1/";
 const PER_PERSON = 5;
@@ -342,38 +342,125 @@ async function viewManage(code) {
 
 /* ---------- 상영 ---------- */
 const theaterEl = $("#theater");
+const SPEED_K = { slow: 1.3, normal: 1, fast: 0.75 };
+const INTRO_MS = 9000;
+const GROUP_AT_MS = [300000, 600000]; // 한 바퀴가 5분 넘으면 2개씩, 10분 넘으면 3개씩
 let theater = null, wakeLock = null, idleT = null;
-const player = { order: [], idx: 0, priority: [], seen: new Set(), timer: null, startedAt: 0, remaining: 0, paused: false, shuffle: false, active: false, code: "", room: null, msgs: [], corner: true };
+const prefs = Object.assign({ speed: "normal", fit: 0, per: "auto", corner: true }, (() => { try { return JSON.parse(localStorage.getItem("mt-prefs") || "{}"); } catch { return {}; } })());
+const savePrefs = () => { try { localStorage.setItem("mt-prefs", JSON.stringify(prefs)); } catch {} };
+const player = { code: "", room: null, msgs: [], active: false, loaded: false, paused: false, timer: null, startedAt: 0, remaining: 0,
+  plan: null, gi: -1, loopElapsed: 0, priority: [], seen: new Set(), stats: {}, recent: [] };
 
 function joinInfo() { const url = joinUrl(player.code); return { code: player.code, url: shortUrl(), qr: qrData(url) }; }
-function buildOrder() {
-  const keys = player.msgs.map((m) => m.id);
-  if (player.shuffle) for (let i = keys.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [keys[i], keys[j]] = [keys[j], keys[i]]; }
-  player.order = ["__intro", ...keys];
+const chunk = (a, n) => { const out = []; for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n)); return out; };
+const loopLen = (groups, k) => groups.reduce((s, g) => s + groupDuration(g, k), 0);
+const fmtMin = (ms) => { const m = Math.round(ms / 60000); return m < 1 ? "1분 미만" : `약 ${m}분`; };
+
+// 이 컴퓨터에서 메시지별로 몇 번, 언제 나왔는지 기억 (다음 바퀴에 덜 나온 것부터)
+function loadStats(code) { try { return JSON.parse(localStorage.getItem("mt-stats-" + code) || "{}"); } catch { return {}; } }
+function markShown(items) {
+  const now = Date.now();
+  for (const m of items) { const s = player.stats[m.id] || { n: 0, t: 0 }; s.n++; s.t = now; player.stats[m.id] = s; }
+  player.recent = [...player.recent, ...items.map((m) => m.id)].slice(-6);
+  try { localStorage.setItem("mt-stats-" + player.code, JSON.stringify(player.stats)); } catch {}
+}
+// 덜 나온 메시지 먼저, 같은 횟수끼리는 섞되 방금 나온 것은 뒤로
+function orderedMessages() {
+  const recent = new Set(player.recent);
+  return player.msgs
+    .map((m) => ({ m, n: player.stats[m.id]?.n || 0, late: recent.has(m.id) ? 1 : 0, r: Math.random() }))
+    .sort((a, b) => a.n - b.n || a.late - b.late || a.r - b.r)
+    .map((x) => x.m);
+}
+function makePlan() {
+  const msgs = orderedMessages();
+  const speedK = SPEED_K[prefs.speed] || 1;
+  const fitMs = (+prefs.fit || 0) * 60000;
+  const natural = loopLen(chunk(msgs, 1), fitMs ? 1 : speedK);
+  const ruleN = natural <= GROUP_AT_MS[0] ? 1 : natural <= GROUP_AT_MS[1] ? 2 : 3;
+  let n = prefs.per === "auto" ? ruleN : +prefs.per;
+  let k = speedK, budget = 0;
+  if (fitMs && msgs.length) {
+    budget = Math.max(30000, fitMs - INTRO_MS);
+    const cands = prefs.per === "auto" ? [1, 2, 3].filter((c) => c >= n) : [n];
+    for (const c of cands) {
+      n = c;
+      const L = loopLen(chunk(msgs, n), 1);
+      k = Math.min(1.6, Math.max(0.6, budget / L));
+      if (L * 0.6 <= budget) break;
+    }
+  }
+  const groups = chunk(msgs, n);
+  const full = INTRO_MS + loopLen(groups, k);
+  const truncated = !!budget && full > fitMs + 2000;
+  return { groups, n, k, budget, est: truncated ? fitMs : full, truncated };
+}
+function updateInfo() {
+  const p = player.plan, el2 = $("#cInfo");
+  if (!p || !player.msgs.length) { el2.textContent = ""; return; }
+  el2.textContent = `한 바퀴 ${fmtMin(p.est)} · ${p.n === 1 ? "1개씩" : p.n + "개씩"}` + (p.truncated ? " · 못 나온 메시지는 다음 바퀴에 먼저" : "");
+}
+function setPos(text) { $("#cPos").textContent = text; }
+
+function startLoop() {
+  player.plan = makePlan(); player.gi = -1; player.loopElapsed = 0;
+  updateInfo();
+  playSlide(introSlide(), INTRO_MS);
+  setPos(`표지 · ${player.msgs.length}개`);
 }
 function introSlide() {
   const n = player.msgs.length, rm = player.room || {};
-  return { kind: "intro", theme: "night", label: "MESSAGES", title: rm.title || "우리 반 메시지 상영관", sub: n ? rm.sub : "아직 도착한 메시지가 없어요. 첫 메시지를 남겨 주세요!", count: n ? `${n}개의 마음이 도착했어요` : "", join: rm.open === false ? null : joinInfo(), dur: n ? 9000 : 12000 };
+  return { kind: "intro", theme: "night", label: "MESSAGES", title: rm.title || "우리 반 메시지 상영관", sub: n ? rm.sub : "아직 도착한 메시지가 없어요. 첫 메시지를 남겨 주세요!", count: n ? `${n}개의 마음이 도착했어요` : "", join: rm.open === false ? null : joinInfo(), dur: n ? INTRO_MS : 12000 };
 }
-function playKey(key, fresh) {
+function playSlide(slide, _dur, fresh) {
   clearTimeout(player.timer);
-  let slide;
-  if (key === "__intro") slide = introSlide();
-  else { const m = player.msgs.find((x) => x.id === key); if (!m) return next(); slide = { kind: "msg", ...m }; player.seen.add(key); }
   const dur = theater.show(slide, { fresh, bar: true });
   player.startedAt = performance.now(); player.remaining = dur;
-  const n = player.msgs.length, i = player.msgs.findIndex((m) => m.id === key);
-  $("#cPos").textContent = key === "__intro" ? `표지 · ${n}개` : `${i + 1} / ${n}`;
   if (player.paused) theater.setPaused(true); else player.timer = setTimeout(next, dur);
+  return dur;
 }
+function playItems(items, fresh) {
+  const k = player.plan?.k || SPEED_K[prefs.speed] || 1;
+  const slide = items.length === 1 ? { kind: "msg", ...items[0], k } : { kind: "group", items, k };
+  const dur = playSlide(slide, 0, fresh);
+  markShown(items);
+  return dur;
+}
+const alive = (g) => g.map((m) => player.msgs.find((x) => x.id === m.id)).filter(Boolean);
 function next() {
   if (!player.active) return;
-  while (player.priority.length) { const k = player.priority.shift(); if (player.msgs.some((m) => m.id === k)) return playKey(k, true); }
-  player.idx++;
-  if (player.idx >= player.order.length) { buildOrder(); player.idx = 0; }
-  playKey(player.order[player.idx]);
+  // 방금 도착한 메시지는 바로 다음에 혼자 크게
+  while (player.priority.length) {
+    const id = player.priority.shift(), m = player.msgs.find((x) => x.id === id);
+    if (m) { player.loopElapsed += playItems([m], true); setPos("방금 도착"); return; }
+  }
+  const p = player.plan;
+  if (!p) return startLoop();
+  while (++player.gi < p.groups.length) {
+    const g = alive(p.groups[player.gi]);
+    if (!g.length) continue;
+    const d = groupDuration(g, p.k);
+    if (p.budget && player.gi > 0 && player.loopElapsed + d > p.budget + 2000) break; // 정한 시간이 다 됨
+    player.loopElapsed += playItems(g);
+    setPos(`${player.gi + 1} / ${p.groups.length} 화면`);
+    return;
+  }
+  startLoop();
 }
-function prev() { if (!player.active) return; player.idx = Math.max(0, player.idx - 1); playKey(player.order[player.idx]); }
+function prev() {
+  if (!player.active || !player.plan) return;
+  const p = player.plan;
+  while (player.gi > 0) {
+    const g = alive(p.groups[--player.gi]);
+    if (g.length) { playItems(g); setPos(`${player.gi + 1} / ${p.groups.length} 화면`); return; }
+  }
+  startLoop();
+}
+function replan() {
+  // 설정을 바꾸면 지금 화면이 끝난 뒤부터 새 계획으로 (이미 나온 메시지는 뒤로)
+  if (!player.active || !player.loaded) return;
+  player.plan = makePlan(); player.gi = -1; player.loopElapsed = 0; updateInfo();
+}
 function togglePause() {
   player.paused = !player.paused;
   $("#cPlay").textContent = player.paused ? "다시 재생" : "일시정지";
@@ -383,6 +470,11 @@ function togglePause() {
 }
 function poke() { theaterEl.classList.remove("idle"); clearTimeout(idleT); idleT = setTimeout(() => theaterEl.classList.add("idle"), 2800); }
 function lockScreen() { try { navigator.wakeLock?.request("screen").then((l) => (wakeLock = l)).catch(() => {}); } catch {} }
+function syncControls() {
+  $("#cSpeed").value = prefs.speed; $("#cFit").value = String(prefs.fit); $("#cPer").value = String(prefs.per); $("#cCorner").checked = !!prefs.corner;
+  $("#cSpeed").disabled = +prefs.fit > 0;
+  $("#cSpeed").title = +prefs.fit > 0 ? "한 바퀴 시간을 정하면 속도는 자동으로 맞춰져요" : "";
+}
 
 async function viewShow(code) {
   let u;
@@ -393,12 +485,13 @@ async function viewShow(code) {
   if (!first || !first.exists() || first.data().ownerUid !== u.uid) return showMessage("반을 찾을 수 없어요", "이 계정에서 만든 반이 아니거나 지워진 반이에요.");
 
   mount("tpl-msg"); fill(app, "title", "상영 중이에요"); fill(app, "body", "상영 화면을 닫으면 반 관리 화면으로 돌아가요.");
-  Object.assign(player, { code, room: first.data(), msgs: [], priority: [], seen: new Set(), idx: 0, paused: false, active: true, loaded: false });
+  Object.assign(player, { code, room: first.data(), msgs: [], priority: [], seen: new Set(), plan: null, gi: -1, loopElapsed: 0, paused: false, active: true, loaded: false, stats: loadStats(code), recent: [] });
   theaterEl.hidden = false;
   theater = new Stage($("#theaterStage"));
-  theater.setCorner(player.corner && player.room.open !== false ? joinInfo() : null);
+  theater.setCorner(prefs.corner && player.room.open !== false ? joinInfo() : null);
   $("#cPlay").textContent = "일시정지";
-  buildOrder(); playKey("__intro");
+  syncControls(); updateInfo();
+  playSlide(introSlide(), INTRO_MS); setPos("불러오는 중");
   lockScreen(); poke();
   onCleanup(() => {
     player.active = false; clearTimeout(player.timer); theaterEl.hidden = true;
@@ -409,7 +502,7 @@ async function viewShow(code) {
   onCleanup(F.onSnapshot(roomRef, (s) => {
     if (!s.exists()) return;
     player.room = s.data();
-    theater?.setCorner(player.corner && player.room.open !== false ? joinInfo() : null);
+    theater?.setCorner(prefs.corner && player.room.open !== false ? joinInfo() : null);
   }, () => {}));
   const q = F.query(F.collection(db, "rooms", code, "messages"), F.where("approved", "==", true));
   onCleanup(F.onSnapshot(q, (snap) => {
@@ -421,10 +514,11 @@ async function viewShow(code) {
     if (firstLoad) {
       player.loaded = true;
       player.msgs.forEach((m) => player.seen.add(m.id));
-      buildOrder(); player.idx = 0; playKey("__intro");
+      startLoop();
       return;
     }
     for (const m of player.msgs) if (!player.seen.has(m.id)) { player.seen.add(m.id); player.priority.push(m.id); }
+    updateInfo();
   }, (err) => { console.error(err); }));
 }
 
@@ -432,8 +526,10 @@ $("#cExit").addEventListener("click", () => { location.hash = "#manage/" + playe
 $("#cNext").addEventListener("click", () => next());
 $("#cPrev").addEventListener("click", prev);
 $("#cPlay").addEventListener("click", togglePause);
-$("#cShuffle").addEventListener("change", (e) => { player.shuffle = e.target.checked; });
-$("#cCorner").addEventListener("change", (e) => { player.corner = e.target.checked; theater?.setCorner(player.corner && player.room?.open !== false ? joinInfo() : null); });
+$("#cSpeed").addEventListener("change", (e) => { prefs.speed = e.target.value; savePrefs(); replan(); });
+$("#cFit").addEventListener("change", (e) => { prefs.fit = +e.target.value; savePrefs(); syncControls(); replan(); });
+$("#cPer").addEventListener("change", (e) => { prefs.per = e.target.value; savePrefs(); replan(); });
+$("#cCorner").addEventListener("change", (e) => { prefs.corner = e.target.checked; savePrefs(); theater?.setCorner(prefs.corner && player.room?.open !== false ? joinInfo() : null); });
 $("#cFull").addEventListener("click", () => {
   if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
   else { try { theaterEl.requestFullscreen?.().catch(() => {}); } catch {} }
@@ -443,6 +539,7 @@ theaterEl.addEventListener("pointerdown", poke);
 document.addEventListener("keydown", (e) => {
   if (theaterEl.hidden) return;
   poke();
+  if (e.target.closest && e.target.closest("select")) return;
   if (e.key === " ") { e.preventDefault(); togglePause(); }
   else if (e.key === "ArrowRight") next();
   else if (e.key === "ArrowLeft") prev();

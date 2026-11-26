@@ -4,6 +4,23 @@ export const THEME_NAMES = { blossom: "벚꽃", night: "밤하늘", chalk: "칠�
 export const THEME_DOT = { blossom: "#F08FB1", night: "#3A3A86", chalk: "#2E5A47", sky: "#7FC4F0" };
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+// 메시지 한 장의 시간 계산 (k: 속도 배율, 1 = 보통, 클수록 느림)
+export function msgTiming(text, k = 1) {
+  const len = Array.from(String(text || "")).length;
+  const start = .9;
+  const reveal = Math.min(4.8, Math.max(1.2, len * .055)) * k;
+  const read = Math.min(9, Math.max(3.2, len * .085)) * k;
+  return { len, start, reveal, fromAt: start + reveal + .3, dur: Math.round((start + reveal + 1.2 + read) * 1000) };
+}
+export const GROUP_STAGGER = .7; // 여러 장을 함께 보여 줄 때 카드끼리 시작 간격(초)
+// 한 화면에 여러 장이 함께 나올 때의 시간: 가장 늦게 끝나는 카드 + 함께 읽을 여유
+export function groupDuration(items, k = 1) {
+  if (items.length === 1) return msgTiming(items[0].text, k).dur;
+  let mx = 0;
+  items.forEach((m, i) => { mx = Math.max(mx, i * GROUP_STAGGER * 1000 + msgTiming(m.text, k).dur); });
+  return Math.round(mx + (items.length - 1) * 2000 * k);
+}
+
 export const el = (tag, cls, text) => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -124,14 +141,20 @@ export class Stage {
     this.corner.hidden = false;
   }
   show(slide, opts = {}) {
-    const theme = THEMES.includes(slide.theme) ? slide.theme : "night";
+    let theme = slide.theme;
+    if (slide.kind === "group") {
+      // 카드들 중 가장 많은 분위기를 배경으로
+      const cnt = {}; slide.items.forEach((m) => (cnt[m.theme] = (cnt[m.theme] || 0) + 1));
+      theme = slide.items.map((m) => m.theme).sort((a, b) => cnt[b] - cnt[a])[0];
+    }
+    theme = THEMES.includes(theme) ? theme : "night";
     this.root.dataset.theme = theme;
     this.particles.setTheme(theme);
     if (this.current) {
       const old = this.current;
       if (opts.instant) old.remove(); else { old.classList.add("out"); setTimeout(() => old.remove(), 900); }
     }
-    const [node, dur] = slide.kind === "msg" ? this.msgSlide(slide) : this.introSlide(slide);
+    const [node, dur] = slide.kind === "msg" ? this.msgSlide(slide) : slide.kind === "group" ? this.groupSlide(slide) : this.introSlide(slide);
     if (opts.instant) node.classList.add("instant");
     this.root.appendChild(node); this.current = node;
     this.root.classList.toggle("on-intro", slide.kind !== "msg");
@@ -143,16 +166,36 @@ export class Stage {
   }
   msgSlide(m) {
     const node = el("div", "slide");
+    this.fillMsg(node, m, m.k || 1, 0, 1);
+    return [node, msgTiming(m.text, m.k || 1).dur];
+  }
+  groupSlide(s) {
+    const k = s.k || 1, n = s.items.length;
+    const node = el("div", "slide group");
+    node.style.setProperty("--n", n);
+    s.items.forEach((m, i) => {
+      const card = el("div", "mcard"); card.dataset.theme = THEMES.includes(m.theme) ? m.theme : "blossom";
+      const off = i * GROUP_STAGGER;
+      card.style.setProperty("--d", off.toFixed(2) + "s");
+      const inner = el("div", "mc-in"); card.appendChild(inner);
+      this.fillMsg(inner, m, k, off, n >= 3 ? 1.3 : 1.15);
+      node.appendChild(card);
+    });
+    return [node, groupDuration(s.items, k)];
+  }
+  // 받는 사람 → 글자가 한 자씩 → 보내는 사람 순서로 채우기 (off: 시작 지연, mul: 글자 크기 배율)
+  fillMsg(node, m, k, off, mul) {
+    const T = msgTiming(m.text, k);
     const to = el("div", "s-to"); to.appendChild(el("small", null, "To.")); to.appendChild(document.createTextNode(m.to || "친구들"));
-    to.style.setProperty("--d", ".25s");
+    to.style.setProperty("--d", (off + .25).toFixed(2) + "s");
     const p = el("p", "s-msg");
     const text = String(m.text || "");
-    const len = Array.from(text).length;
+    const len = T.len;
     let fs = len <= 16 ? 9 : len <= 40 ? 7.2 : len <= 80 ? 5.8 : len <= 130 ? 4.8 : 4.1;
     if (m.theme === "chalk") fs *= 1.28;
-    p.style.setProperty("--fs", fs + "cqmin");
-    const reveal = Math.min(4.8, Math.max(1.2, len * .055));
-    const step = len ? reveal / len : 0, start = .9;
+    p.style.setProperty("--fs", (fs * mul).toFixed(2) + "cqmin");
+    const reveal = T.reveal;
+    const step = len ? reveal / len : 0, start = off + T.start;
     let i = 0;
     text.split("\n").forEach((line, li) => {
       if (li) p.appendChild(el("br"));
@@ -166,10 +209,8 @@ export class Stage {
       i++;
     });
     const from = el("div", "s-from"); from.appendChild(el("small", null, "From.")); from.appendChild(document.createTextNode(m.from || "익명"));
-    from.style.setProperty("--d", (start + reveal + .3).toFixed(2) + "s");
+    from.style.setProperty("--d", (off + T.fromAt).toFixed(2) + "s");
     node.append(to, p, from);
-    const read = Math.min(9, Math.max(3.2, len * .085));
-    return [node, Math.round((start + reveal + 1.2 + read) * 1000)];
   }
   introSlide(s) {
     const node = el("div", "slide intro");
