@@ -1,5 +1,5 @@
-import { firebaseConfig } from "./config.js";
-import { Stage, THEMES, THEME_DOT, el, groupDuration } from "./stage.js";
+import { firebaseConfig } from "./config.js?v=20261126162229";
+import { Stage, THEMES, THEME_DOT, el, groupDuration } from "./stage.js?v=20261126162229";
 
 const FB = "https://www.gstatic.com/firebasejs/10.14.1/";
 const PER_PERSON = 5;
