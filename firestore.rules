@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isGoogle() { return signedIn() && request.auth.token.firebase.sign_in_provider == 'google.com'; }
+    function adminDoc() { return get(/databases/$(database)/documents/config/admin); }
+    function isAdmin() { return isGoogle() && exists(/databases/$(database)/documents/config/admin) && adminDoc().data.uid == request.auth.uid; }
+    function room(code) { return get(/databases/$(database)/documents/rooms/$(code)).data; }
+    function isTeacher(code) { return signedIn() && room(code).ownerUid == request.auth.uid; }
+    function shortText(v, n) { return v is string && v.size() <= n; }
+
+    // 사이트 관리자: 처음 로그인한 구글 계정 하나만 등록되고 이후에는 바꿀 수 없음
+    match /config/admin {
+      allow get: if signedIn();
+      allow create: if isGoogle()
+        && request.resource.data.keys().hasOnly(['uid', 'at'])
+        && request.resource.data.uid == request.auth.uid;
+    }
+
+    match /rooms/{code} {
+      // 코드를 아는 사람만 열 수 있음. 목록은 선생님 자기 반만.
+      allow get: if signedIn();
+      allow list: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isAdmin()
+        && code.matches('^[A-Z0-9]{6}$')
+        && request.resource.data.keys().hasOnly(['ownerUid', 'title', 'sub', 'open', 'moderation', 'createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && shortText(request.resource.data.title, 60)
+        && shortText(request.resource.data.sub, 120)
+        && request.resource.data.open is bool
+        && request.resource.data.moderation is bool;
+      allow update: if isTeacher(code)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.keys().hasOnly(['ownerUid', 'title', 'sub', 'open', 'moderation', 'createdAt'])
+        && shortText(request.resource.data.title, 60)
+        && shortText(request.resource.data.sub, 120)
+        && request.resource.data.open is bool
+        && request.resource.data.moderation is bool;
+      allow delete: if isTeacher(code);
+
+      match /messages/{id} {
+        // 선생님은 전부, 학생은 자기 글만 읽기
+        allow read: if isTeacher(code) || (signedIn() && resource.data.uid == request.auth.uid);
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['to', 'from', 'text', 'theme', 'uid', 'at', 'approved'])
+          && request.resource.data.uid == request.auth.uid
+          && shortText(request.resource.data.to, 40)
+          && shortText(request.resource.data.from, 40)
+          && shortText(request.resource.data.text, 400)
+          && request.resource.data.text.size() > 0
+          && request.resource.data.theme in ['blossom', 'night', 'chalk', 'sky']
+          && request.resource.data.at == request.time
+          && request.resource.data.approved is bool
+          && (isTeacher(code)
+              || (room(code).open == true && request.resource.data.approved == !room(code).moderation));
+        // 승인/상영 제외는 선생님만, 바꿀 수 있는 건 approved 하나
+        allow update: if isTeacher(code)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['approved'])
+          && request.resource.data.approved is bool;
+        allow delete: if isTeacher(code) || (signedIn() && resource.data.uid == request.auth.uid);
+      }
+    }
+  }
+}

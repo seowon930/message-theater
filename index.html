@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>우리 반 메시지 상영관</title>
+<meta name="description" content="졸업·종업식을 앞두고 친구에게 남긴 메시지가 영상처럼 계속 재생되는 상영관">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23141C45'/%3E%3Cpath d='M32 14c6 7 6 13 0 19-6-6-6-12 0-19z' fill='%23F7A8C4'/%3E%3Cpath d='M18 40h28v4H18z' fill='%23F7D58B'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@700&display=swap">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<div id="app"><div class="wrap"><p class="lede">불러오는 중…</p></div></div>
+
+<div id="theater" hidden>
+  <div class="stage" id="theaterStage"></div>
+  <div class="controls">
+    <button type="button" id="cPrev">◀ 이전</button>
+    <button type="button" id="cPlay">일시정지</button>
+    <button type="button" id="cNext">다음 ▶</button>
+    <span class="pos" id="cPos">0 / 0</span>
+    <label><input type="checkbox" id="cShuffle"> 섞어서</label>
+    <label><input type="checkbox" id="cCorner" checked> QR 표시</label>
+    <button type="button" id="cFull">전체 화면</button>
+    <button type="button" id="cExit">나가기</button>
+  </div>
+</div>
+
+<!-- 첫 화면: 반 코드 입력 -->
+<template id="tpl-home">
+  <div class="wrap narrow home">
+    <form class="card" id="homeForm" autocomplete="off" novalidate>
+      <div>
+        <div class="eyebrow" style="justify-content:center">졸업·종업 메시지 상영관</div>
+        <h1>친구에게 마지막 한마디</h1>
+        <p class="lede" style="margin-inline:auto">선생님이 알려 준 반 코드 6자리를 입력하세요.</p>
+      </div>
+      <div class="field">
+        <label for="codeIn" style="text-align:left">반 코드</label>
+        <input id="codeIn" class="code-input" maxlength="7" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="ABC123">
+      </div>
+      <button class="btn accent" type="submit" id="homeGo">입장하기</button>
+      <p class="status" id="homeStatus" role="status" aria-live="polite"></p>
+      <div class="foot">선생님이신가요? <a href="#teacher">관리 화면으로 가기</a></div>
+    </form>
+  </div>
+</template>
+
+<!-- 학생: 메시지 쓰기 -->
+<template id="tpl-join">
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <div class="eyebrow"><a href="#">← 다른 코드 입력</a><span>·</span><span>반 코드 <span class="code-chip" data-f="code"></span></span></div>
+        <h1 data-f="title"></h1>
+        <p class="lede" data-f="sub"></p>
+      </div>
+    </header>
+    <div class="studio">
+      <form class="card" id="msgForm" autocomplete="off" novalidate>
+        <div class="row2">
+          <div class="field"><label for="to">받는 친구</label><input id="to" maxlength="20" placeholder="예: 3반 친구들, 민지"></div>
+          <div class="field"><label for="from">보내는 사람</label><input id="from" maxlength="20" placeholder="이름 또는 별명"></div>
+        </div>
+        <div class="field">
+          <label for="text">하고 싶은 말</label>
+          <textarea id="text" maxlength="200" placeholder="1년 동안 옆자리에 앉아 줘서 고마워. 내년에도 복도에서 만나면 꼭 인사하자!"></textarea>
+          <div class="hint"><span>줄을 바꾸면 화면에서도 줄이 바뀌어요.</span><span class="count" id="count">0 / 200</span></div>
+        </div>
+        <fieldset class="field">
+          <legend>화면 분위기</legend>
+          <div class="themes">
+            <input type="radio" name="theme" id="th-blossom" value="blossom" checked><label class="chip" for="th-blossom"><i class="sw-blossom"></i>벚꽃</label>
+            <input type="radio" name="theme" id="th-night" value="night"><label class="chip" for="th-night"><i class="sw-night"></i>밤하늘</label>
+            <input type="radio" name="theme" id="th-chalk" value="chalk"><label class="chip" for="th-chalk"><i class="sw-chalk"></i>칠판</label>
+            <input type="radio" name="theme" id="th-sky" value="sky"><label class="chip" for="th-sky"><i class="sw-sky"></i>종이비행기</label>
+          </div>
+        </fieldset>
+        <div class="notice" id="closedNote" hidden>지금은 메시지를 받지 않고 있어요. 선생님이 다시 열면 쓸 수 있어요.</div>
+        <button class="submit" id="submit" type="submit">메시지 올리기</button>
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+      </form>
+      <div class="preview-col">
+        <div class="preview-head"><span>미리보기 · 상영 화면에서 이렇게 보여요</span><button class="ghost" id="replay" type="button">▶ 다시 재생</button></div>
+        <div class="stage" id="previewStage"></div>
+      </div>
+    </div>
+    <section>
+      <div class="list-head"><h2>내가 보낸 메시지</h2><span id="mineCount"></span></div>
+      <div class="grid" id="mine"></div>
+    </section>
+  </div>
+</template>
+
+<!-- 선생님: 반 목록 -->
+<template id="tpl-teacher">
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <div class="eyebrow"><a href="#">← 처음 화면</a><span>·</span><span>선생님 관리</span></div>
+        <h1>우리 반 상영관 관리</h1>
+        <p class="lede" data-f="who"></p>
+      </div>
+      <button class="ghost" id="signOut" type="button" hidden>로그아웃</button>
+    </header>
+    <div class="card narrow" id="loginBox" hidden>
+      <p style="margin:0">반을 만들고 메시지를 관리하려면 구글 계정으로 로그인하세요. 처음 로그인한 계정이 이 사이트의 관리자가 돼요.</p>
+      <button class="btn" id="signIn" type="button">구글로 로그인</button>
+      <p class="status" id="loginStatus" role="status"></p>
+    </div>
+    <div id="teacherBody" hidden>
+      <section>
+        <div class="list-head"><h2>내 반</h2><span id="roomCount"></span></div>
+        <div class="rooms" id="rooms"></div>
+      </section>
+      <section style="margin-top:28px">
+        <form class="card narrow" id="newRoom" autocomplete="off" novalidate>
+          <h2>새 반 만들기</h2>
+          <div class="field"><label for="nrTitle">상영 제목</label><input id="nrTitle" maxlength="40" value="2026학년도, 고마웠어"></div>
+          <div class="field"><label for="nrSub">작은 설명</label><input id="nrSub" maxlength="80" value="졸업·종업을 앞두고 친구들에게 남기는 마음"></div>
+          <label class="check"><input type="checkbox" id="nrMod"> <span><b>검토 후 상영</b><br><span class="hint" style="display:block">학생 글을 선생님이 승인해야 상영 화면에 나와요.</span></span></label>
+          <button class="btn accent" type="submit">반 만들고 코드 받기</button>
+          <p class="status" id="nrStatus" role="status"></p>
+        </form>
+      </section>
+    </div>
+  </div>
+</template>
+
+<!-- 선생님: 반 관리 -->
+<template id="tpl-manage">
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <div class="eyebrow"><a href="#teacher">← 내 반 목록</a></div>
+        <h1 data-f="title"></h1>
+        <p class="lede" data-f="sub"></p>
+      </div>
+      <div class="row">
+        <a class="btn accent" data-f="showLink">▶ 상영 시작</a>
+      </div>
+    </header>
+    <div class="manage-grid">
+      <div class="card">
+        <div class="join-card">
+          <img data-f="qr" alt="학생 참여용 QR 코드">
+          <div style="display:grid;gap:8px;min-width:0">
+            <div class="hint" style="display:block">학생들은 QR을 찍거나, 아래 주소에 들어가서 반 코드를 입력하면 돼요.</div>
+            <div class="big-code" data-f="code"></div>
+            <div class="join-url" data-f="url"></div>
+            <div class="row"><button class="ghost" id="copyLink" type="button">참여 주소 복사</button><a class="ghost" data-f="joinLink">학생 화면 열기</a></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>설정</h2>
+        <div class="row">
+          <button class="ghost" id="tOpen" type="button"></button>
+          <button class="ghost" id="tMod" type="button"></button>
+        </div>
+        <div class="field"><label for="setTitle">상영 제목</label><input id="setTitle" maxlength="40"></div>
+        <div class="field"><label for="setSub">작은 설명</label><input id="setSub" maxlength="80"></div>
+        <div class="row"><button class="ghost" id="saveSettings" type="button">제목 저장</button></div>
+        <p class="status" id="setStatus" role="status"></p>
+      </div>
+    </div>
+    <section>
+      <div class="list-head"><h2>모인 메시지</h2><button class="ghost" id="approveAll" type="button" hidden>검토 대기 모두 승인</button></div>
+      <div class="tabs" id="tabs">
+        <button type="button" data-tab="all" aria-pressed="true">전체</button>
+        <button type="button" data-tab="wait" aria-pressed="false">검토 대기</button>
+        <button type="button" data-tab="ok" aria-pressed="false">상영 중</button>
+      </div>
+      <div class="grid" id="msgs"></div>
+    </section>
+  </div>
+</template>
+
+<template id="tpl-msg">
+  <div class="wrap narrow">
+    <div class="card">
+      <h1 data-f="title"></h1>
+      <p style="margin:0" data-f="body"></p>
+      <div class="row"><a class="btn" href="#">처음 화면으로</a></div>
+    </div>
+  </div>
+</template>
+</body>
+</html>
