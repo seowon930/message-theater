@@ -286,7 +286,6 @@ export class Stage {
     const text = String(m.text || "");
     const len = T.len;
     let fs = len <= 16 ? 9 : len <= 40 ? 7.2 : len <= 80 ? 5.8 : len <= 130 ? 4.8 : 4.1;
-    if (m.theme === "chalk" && !note) fs *= 1.28;
     p.style.setProperty("--fs", (fs * mul).toFixed(2) + "cqmin");
     const reveal = T.reveal;
     const step = len ? reveal / len : 0, start = off + T.start;
