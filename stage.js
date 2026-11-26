@@ -182,7 +182,7 @@ class Particles {
 export class Stage {
   constructor(root) {
     this.root = root; root.textContent = ""; root.dataset.theme = "night";
-    [...THEMES, "board"].forEach((t) => root.appendChild(el("div", "bg bg-" + t)));
+    THEMES.forEach((t) => root.appendChild(el("div", "bg bg-" + t)));
     const cv = el("canvas"); cv.setAttribute("aria-hidden", "true"); root.appendChild(cv);
     this.particles = new Particles(cv);
     this.particles.setTheme("night");
@@ -201,7 +201,13 @@ export class Stage {
     this.corner.hidden = false;
   }
   show(slide, opts = {}) {
-    let theme = slide.kind === "group" ? "board" : THEMES.includes(slide.theme) ? slide.theme : "night";
+    let theme = slide.theme;
+    if (slide.kind === "group") {
+      // 메모지들 중 가장 많이 고른 배경을 뒤에 깔기 (같으면 첫 메시지 것)
+      const cnt = {}; slide.items.forEach((m) => (cnt[m.theme] = (cnt[m.theme] || 0) + 1));
+      theme = slide.items.map((m) => m.theme).sort((a, b) => cnt[b] - cnt[a])[0];
+    }
+    theme = THEMES.includes(theme) ? theme : "night";
     this.root.dataset.theme = theme;
     this.particles.setTheme(theme);
     if (this.current) {
@@ -223,7 +229,7 @@ export class Stage {
     this.fillMsg(node, m, m.k || 1, 0, 1);
     return [node, msgTiming(m.text, m.k || 1).dur];
   }
-  // 여러 장: 회색 보드 위에 메모지처럼 붙이기
+  // 여러 장: 고른 배경 위에 메모지처럼 붙이기
   groupSlide(s) {
     const k = s.k || 1, n = s.items.length;
     const node = el("div", "slide group");
