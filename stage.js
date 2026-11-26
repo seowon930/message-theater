@@ -21,6 +21,66 @@ export function groupDuration(items, k = 1) {
   return Math.round(mx + (items.length - 1) * 2000 * k);
 }
 
+/* ---------- 메모지 ---------- */
+// edges: [위, 오른쪽, 아래, 왼쪽] 가장자리 모양 (s 반듯, t 찢김, z 지그재그)
+const NOTE_SPEC = {
+  whiteTorn:  { edges: "ssts", tapes: ["top lav"] },
+  beigeTorn:  { edges: "ssts", tapes: ["top coral"] },
+  lavFold:    { fold: true, tapes: ["top mint"] },
+  sticky:     { fold: true, tapes: ["top blue wide"] },
+  lined:      { tapes: ["tl navy", "tr navy"] },
+  grid:       { tapes: ["top terra small"] },
+  pinkLined:  { tapes: ["tl orange", "tr orange"] },
+  skyHoles:   { clip: true },
+  zigzag:     { edges: "zszs", tapes: ["top mint"] },
+  kraftTorn:  { edges: "ssts", tapes: ["tl milk"] },
+  dotCream:   { tapes: ["tl pink", "br pink"] },
+  mintRound:  { tapes: ["top yellow"] },
+};
+const ALL_NOTES = Object.keys(NOTE_SPEC);
+// 학생이 고른 분위기에 어울리는 메모지 묶음
+const NOTE_FAMILY = {
+  blossom: ["pinkLined", "zigzag", "beigeTorn", "whiteTorn"],
+  sky: ["skyHoles", "grid", "whiteTorn", "mintRound"],
+  chalk: ["lined", "dotCream", "kraftTorn", "grid"],
+  night: ["lavFold", "sticky", "dotCream", "mintRound"],
+};
+function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function seeded(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function edgeClip(edges, rnd) {
+  const pts = [];
+  const side = (kind, along) => {
+    // along(p, f): p = 0..100 진행, f = 안쪽으로 들어간 깊이(%)
+    if (kind === "s") { along(0, 0); return; }
+    let p = 0, up = false;
+    while (p < 100) {
+      const f = kind === "z" ? (up ? 0 : 2.2) : rnd() * 2.4 + (rnd() < .15 ? 1.4 : 0);
+      along(p, f); up = !up;
+      p += kind === "z" ? 2.2 : 1.2 + rnd() * 2.6;
+    }
+  };
+  side(edges[0], (p, f) => pts.push([p, f]));
+  side(edges[1], (p, f) => pts.push([100 - f, p]));
+  side(edges[2], (p, f) => pts.push([100 - p, 100 - f]));
+  side(edges[3], (p, f) => pts.push([f, 100 - p]));
+  return "polygon(" + pts.map(([x, y]) => `${x.toFixed(2)}% ${y.toFixed(2)}%`).join(",") + ")";
+}
+function tapeClip(rnd) {
+  // 테이프 양 끝을 톱니처럼
+  const L = [], R = [];
+  for (let y = 0; y <= 100; y += 20) { L.push([(rnd() * 5).toFixed(1), y]); R.push([(95 + rnd() * 5).toFixed(1), 100 - y]); }
+  return "polygon(" + [...L, ...R].map(([x, y]) => `${x}% ${y}%`).join(",") + ")";
+}
+const STICKERS = {
+  heart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.1C.9 8.6 2.9 4.5 6.7 4.5c2.2 0 3.6 1.2 5.3 3.2 1.7-2 3.1-3.2 5.3-3.2 3.8 0 5.8 4.1 4.3 7.4C19.5 16.4 12 21 12 21z" fill="#F7A1BC"/></svg>',
+  sparkle: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5c.9 5.6 3.5 8.6 10.5 10.5-7 1.9-9.6 4.9-10.5 10.5-.9-5.6-3.5-8.6-10.5-10.5 7-1.9 9.6-4.9 10.5-10.5z" fill="#AFC6F6"/></svg>',
+  smile: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#FCE38A"/><circle cx="8.6" cy="10.2" r="1.1" fill="#E07C95"/><circle cx="15.4" cy="10.2" r="1.1" fill="#E07C95"/><path d="M8.3 14c1.9 2.4 5.5 2.4 7.4 0" stroke="#E07C95" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>',
+  clover: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="#C7E480"><circle cx="12" cy="6.5" r="5"/><circle cx="17.5" cy="12" r="5"/><circle cx="12" cy="17.5" r="5"/><circle cx="6.5" cy="12" r="5"/></g></svg>',
+  star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2l2.9 6.2 6.8.8-5 4.6 1.4 6.7L12 17.1l-6.1 3.4 1.4-6.7-5-4.6 6.8-.8z" fill="#F9D978" stroke="#F9D978" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+  loop: '<svg viewBox="0 0 32 24" aria-hidden="true"><path d="M2 18c5-1 8-5 8-9s-4-5-5-2 3 7 8 7 7-3 6-6-5-2-4 2 5 7 15 6" stroke="#B5D5F6" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>',
+  clip: '<svg viewBox="0 0 24 48" aria-hidden="true"><path d="M16 14v22a6 6 0 0 1-12 0V10a4 4 0 0 1 8 0v24a2 2 0 0 1-4 0V14" stroke="#F07C9A" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>',
+};
+
 export const el = (tag, cls, text) => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -122,7 +182,7 @@ class Particles {
 export class Stage {
   constructor(root) {
     this.root = root; root.textContent = ""; root.dataset.theme = "night";
-    THEMES.forEach((t) => root.appendChild(el("div", "bg bg-" + t)));
+    [...THEMES, "board"].forEach((t) => root.appendChild(el("div", "bg bg-" + t)));
     const cv = el("canvas"); cv.setAttribute("aria-hidden", "true"); root.appendChild(cv);
     this.particles = new Particles(cv);
     this.particles.setTheme("night");
@@ -141,13 +201,7 @@ export class Stage {
     this.corner.hidden = false;
   }
   show(slide, opts = {}) {
-    let theme = slide.theme;
-    if (slide.kind === "group") {
-      // 카드들 중 가장 많은 분위기를 배경으로
-      const cnt = {}; slide.items.forEach((m) => (cnt[m.theme] = (cnt[m.theme] || 0) + 1));
-      theme = slide.items.map((m) => m.theme).sort((a, b) => cnt[b] - cnt[a])[0];
-    }
-    theme = THEMES.includes(theme) ? theme : "night";
+    let theme = slide.kind === "group" ? "board" : THEMES.includes(slide.theme) ? slide.theme : "night";
     this.root.dataset.theme = theme;
     this.particles.setTheme(theme);
     if (this.current) {
@@ -169,22 +223,56 @@ export class Stage {
     this.fillMsg(node, m, m.k || 1, 0, 1);
     return [node, msgTiming(m.text, m.k || 1).dur];
   }
+  // 여러 장: 회색 보드 위에 메모지처럼 붙이기
   groupSlide(s) {
     const k = s.k || 1, n = s.items.length;
     const node = el("div", "slide group");
     node.style.setProperty("--n", n);
+    const used = new Set();
     s.items.forEach((m, i) => {
-      const card = el("div", "mcard"); card.dataset.theme = THEMES.includes(m.theme) ? m.theme : "blossom";
+      const rnd = seeded(hashStr(m.id || m.text || String(i)));
+      const fam = NOTE_FAMILY[m.theme] || NOTE_FAMILY.blossom;
+      let style = fam[Math.floor(rnd() * fam.length)];
+      if (used.has(style)) style = fam.find((x) => !used.has(x)) || ALL_NOTES.find((x) => !used.has(x)) || style;
+      used.add(style);
+      const card = el("div", "mcard note n-" + style);
       const off = i * GROUP_STAGGER;
       card.style.setProperty("--d", off.toFixed(2) + "s");
+      card.style.setProperty("--rot", ((rnd() - .5) * 5).toFixed(2) + "deg");
+      card.style.setProperty("--ty", ((rnd() - .5) * 4).toFixed(2) + "cqh");
+      const paper = el("div", "paper");
+      const spec = NOTE_SPEC[style];
+      if (spec.edges) paper.style.clipPath = edgeClip(spec.edges, rnd);
+      card.appendChild(paper);
+      if (spec.fold) card.appendChild(el("i", "fold"));
+      (spec.tapes || []).forEach((t) => {
+        const tape = el("i", "tape " + t);
+        tape.style.setProperty("--tr", ((rnd() - .5) * 8).toFixed(1) + "deg");
+        tape.style.clipPath = tapeClip(rnd);
+        card.appendChild(tape);
+      });
+      if (spec.clip) { const c = el("span", "clip"); c.innerHTML = STICKERS.clip; card.appendChild(c); }
       const inner = el("div", "mc-in"); card.appendChild(inner);
-      this.fillMsg(inner, m, k, off, n >= 3 ? 1.3 : 1.15);
+      this.fillMsg(inner, m, k, off, n >= 3 ? 1.4 : 1.45, true);
       node.appendChild(card);
+    });
+    // 보드 가장자리에 작은 스티커 몇 개
+    const rnd = seeded(hashStr(s.items.map((m) => m.id || "").join("|") || "board"));
+    const spots = [[3, 4], [93, 5], [4, 88], [92, 86], [50, 3], [50, 92], [27, 94], [73, 2]].sort(() => rnd() - .5).slice(0, 5);
+    const kinds = Object.keys(STICKERS).filter((x) => x !== "clip");
+    spots.forEach(([x, y], i) => {
+      const st = el("span", "sticker");
+      st.innerHTML = STICKERS[kinds[Math.floor(rnd() * kinds.length)]];
+      st.style.left = x + "%"; st.style.top = y + "%";
+      st.style.setProperty("--rot", ((rnd() - .5) * 40).toFixed(0) + "deg");
+      st.style.setProperty("--d", (.4 + i * .25 + n * GROUP_STAGGER).toFixed(2) + "s");
+      st.style.setProperty("--sz", (4.5 + rnd() * 3).toFixed(1) + "cqmin");
+      node.appendChild(st);
     });
     return [node, groupDuration(s.items, k)];
   }
   // 받는 사람 → 글자가 한 자씩 → 보내는 사람 순서로 채우기 (off: 시작 지연, mul: 글자 크기 배율)
-  fillMsg(node, m, k, off, mul) {
+  fillMsg(node, m, k, off, mul, note) {
     const T = msgTiming(m.text, k);
     const to = el("div", "s-to"); to.appendChild(el("small", null, "To.")); to.appendChild(document.createTextNode(m.to || "친구들"));
     to.style.setProperty("--d", (off + .25).toFixed(2) + "s");
@@ -192,7 +280,7 @@ export class Stage {
     const text = String(m.text || "");
     const len = T.len;
     let fs = len <= 16 ? 9 : len <= 40 ? 7.2 : len <= 80 ? 5.8 : len <= 130 ? 4.8 : 4.1;
-    if (m.theme === "chalk") fs *= 1.28;
+    if (m.theme === "chalk" && !note) fs *= 1.28;
     p.style.setProperty("--fs", (fs * mul).toFixed(2) + "cqmin");
     const reveal = T.reveal;
     const step = len ? reveal / len : 0, start = off + T.start;

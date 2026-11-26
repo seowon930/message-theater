@@ -5,6 +5,7 @@
   --f-display: "Gowun Batang", "Noto Serif KR", "Batang", serif;
   --f-body: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --f-hand: "Nanum Pen Script", "Gowun Batang", cursive;
+  --f-note: "Gaegu", "Nanum Pen Script", "Gowun Dodum", cursive;
   --f-mono: "JetBrains Mono", ui-monospace, "Consolas", monospace;
   color-scheme: light;
 }
@@ -195,18 +196,71 @@ fieldset { border: 0; padding: 0; margin: 0; }
 /* 한 화면에 여러 장: 엽서처럼 나란히 */
 .slide.group { inset: 8cqh 4.5cqw 9cqh; display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); gap: 3cqw; align-items: stretch; }
 @container (max-aspect-ratio: 1/1) { .slide.group { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(0, 1fr); } }
-.mcard { container-type: size; position: relative; min-width: 0; min-height: 0; border-radius: 2cqmin; overflow: hidden; color: var(--s-fg); text-shadow: var(--s-shadow);
-  box-shadow: 0 1.2cqmin 4cqmin rgba(0,0,0,.22); opacity: 0; animation: rise .9s cubic-bezier(.2,.7,.2,1) forwards; animation-delay: var(--d, 0s); }
-.instant .mcard { animation: none; opacity: 1; }
-.mc-in { position: absolute; inset: 0; padding: 9cqmin 8cqmin; display: flex; flex-direction: column; justify-content: center; gap: 5cqh; }
-.mc-in .s-to { font-size: 11cqmin; }
+/* 메모지 보드 */
+.bg-board { background: radial-gradient(circle, rgba(120,126,140,.13) 0 .18cqmin, transparent .26cqmin) 0 0 / 3.2cqmin 3.2cqmin, linear-gradient(180deg, #ECEDF0, #E2E4E8); }
+.stage[data-theme="board"] .bg-board { opacity: 1; }
+.stage[data-theme="board"] .bar { background: rgba(40,45,60,.08); }
+.stage[data-theme="board"] .bar i { background: rgba(40,45,60,.35); }
+.mcard { container-type: size; position: relative; min-width: 0; min-height: 0; margin: 4.5cqh 1cqw 3.5cqh;
+  --ink: #2E2A35; --acc: #C25B7A; --s-fg: var(--ink); --s-acc: var(--acc); --s-msg: var(--f-note); --s-shadow: none;
+  color: var(--ink); text-shadow: none; filter: drop-shadow(0 .5cqmin .7cqmin rgba(30,35,50,.18)) drop-shadow(0 1.6cqmin 2.4cqmin rgba(30,35,50,.10));
+  transform: translateY(var(--ty, 0)) rotate(var(--rot, 0deg));
+  opacity: 0; animation: stick .75s cubic-bezier(.2,.8,.25,1.15) forwards; animation-delay: var(--d, 0s); }
+@keyframes stick { from { opacity: 0; transform: translateY(calc(var(--ty, 0cqh) - 5cqh)) rotate(calc(var(--rot, 0deg) + 6deg)) scale(1.06); } to { opacity: 1; transform: translateY(var(--ty, 0)) rotate(var(--rot, 0deg)); } }
+.instant .mcard, .instant .sticker { animation: none; opacity: 1; }
+.mcard .paper { position: absolute; inset: 0; background: var(--paper, #fff); }
+.mc-in { position: absolute; inset: 0; padding: 13cqmin 9cqmin 9cqmin; display: flex; flex-direction: column; justify-content: center; gap: 4.5cqh; }
+.mc-in .s-to { font-size: 11cqmin; color: var(--acc); }
 .mc-in .s-from { font-size: 9.5cqmin; }
-.mcard[data-theme="blossom"] { background: linear-gradient(160deg, #FFF7FA, #FFE0EA); --s-fg: #4A1D33; --s-acc: #C2346A; --s-msg: var(--f-display); --s-shadow: none; }
-.mcard[data-theme="night"] { background: linear-gradient(160deg, #232B63, #0D1331); border: 1px solid rgba(255,255,255,.16); --s-fg: #F4F1FF; --s-acc: #F7D58B; --s-msg: var(--f-display); --s-shadow: 0 2px 12px rgba(0,0,0,.4); }
-.mcard[data-theme="chalk"] { background: radial-gradient(120% 100% at 50% 40%, #2C5544, #1A3A2D); border: 1.2cqmin solid #6B4A2E; --s-fg: #F3F1E6; --s-acc: #F5E27A; --s-msg: var(--f-hand); --s-shadow: 0 0 2px rgba(255,255,255,.3); }
-.mcard[data-theme="sky"] { background: linear-gradient(180deg, #F4FBFF, #D3ECFB); --s-fg: #13305A; --s-acc: #E0584E; --s-msg: var(--f-display); --s-shadow: none; }
+.mc-in .s-msg { line-height: 1.5; font-weight: 700; }
+
+/* 접힌 모서리 */
+.mcard:has(.fold) .paper { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 13cqmin), calc(100% - 13cqmin) 100%, 0 100%); }
+.mcard .fold { position: absolute; right: 0; bottom: 0; width: 13cqmin; height: 13cqmin; background: linear-gradient(135deg, var(--foldc, rgba(0,0,0,.1)) 0 50%, transparent 50%); filter: drop-shadow(-.4cqmin -.4cqmin .5cqmin rgba(0,0,0,.08)); }
+
+/* 마스킹테이프 */
+.mcard .tape { position: absolute; width: 30cqmin; height: 8.5cqmin; background: var(--tape); opacity: .82; z-index: 2;
+  background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.18) 0 1.2cqmin, transparent 1.2cqmin 2.4cqmin); }
+.tape.top { top: -3.5cqmin; left: 50%; transform: translateX(-50%) rotate(var(--tr, 0deg)); }
+.tape.top.wide { width: 46cqmin; }
+.tape.top.small { width: 22cqmin; }
+.tape.tl { top: 1cqmin; left: -5cqmin; transform: rotate(calc(-38deg + var(--tr, 0deg))); width: 24cqmin; }
+.tape.tr { top: 1cqmin; right: -5cqmin; transform: rotate(calc(38deg + var(--tr, 0deg))); width: 24cqmin; }
+.tape.br { bottom: 1cqmin; right: -5cqmin; transform: rotate(calc(-38deg + var(--tr, 0deg))); width: 24cqmin; }
+.tape.lav { --tape: #C9B5E3; } .tape.coral { --tape: #F2A391; } .tape.mint { --tape: #9FD3B5; } .tape.blue { --tape: #9CC8E8; }
+.tape.navy { --tape: #7E93B8; } .tape.terra { --tape: #D98C7A; } .tape.orange { --tape: #F6B66E; } .tape.milk { --tape: #F4F1EA; }
+.tape.pink { --tape: #F4A9B8; } .tape.yellow { --tape: #F3D66B; }
+.mcard .clip { position: absolute; top: -6cqmin; left: 7cqmin; width: 8cqmin; height: 16cqmin; z-index: 2; transform: rotate(-8deg); }
+.mcard .clip svg, .sticker svg { width: 100%; height: 100%; display: block; }
+
+/* 종이 종류 */
+.n-whiteTorn { --paper: #FFFFFF; --acc: #8C6BC4; }
+.n-beigeTorn { --paper: #F4EAD8; --acc: #B4674F; }
+.n-lavFold { --paper: #ECE6F5; --foldc: #D5CBE6; --acc: #7C62B0; }
+.n-sticky { --paper: #FFF2A8; --foldc: #F1DC79; --acc: #B9731F; }
+.n-lined { --acc: #3E66A8; }
+.n-lined .paper { background: linear-gradient(90deg, transparent 0 8cqmin, #EBA6A6 8cqmin calc(8cqmin + 2px), transparent 0),
+  repeating-linear-gradient(180deg, transparent 0 calc(8.5cqmin - 1px), #D3DEF0 calc(8.5cqmin - 1px) 8.5cqmin), #FFFFFF; }
+.n-grid { --acc: #C46A52; }
+.n-grid .paper { background: repeating-linear-gradient(90deg, transparent 0 calc(5cqmin - 1px), #DDE7F3 calc(5cqmin - 1px) 5cqmin),
+  repeating-linear-gradient(180deg, transparent 0 calc(5cqmin - 1px), #DDE7F3 calc(5cqmin - 1px) 5cqmin), #FFFFFF; }
+.n-pinkLined { --acc: #D0587A; }
+.n-pinkLined .paper { background: repeating-linear-gradient(180deg, transparent 0 calc(8.5cqmin - 1px), #F6CFDA calc(8.5cqmin - 1px) 8.5cqmin), #FFF0F3; }
+.n-skyHoles { --acc: #2F6FA6; }
+.n-skyHoles .paper { background: radial-gradient(circle, #FFFFFF 0 1.3cqmin, transparent 1.4cqmin) 3.5cqmin 2cqmin / 7cqmin 6cqmin repeat-x, #DDF0FB; border-radius: 1.6cqmin; }
+.n-zigzag { --paper: #FDEBF3; --acc: #CF4F82; }
+.n-kraftTorn { --paper: #D9B391; --ink: #3D2A1E; --acc: #7A3E1D; }
+.n-dotCream { --acc: #6E8A3A; }
+.n-dotCream .paper { background: radial-gradient(circle, #CFCDBE 0 .35cqmin, transparent .45cqmin) 2cqmin 2cqmin / 5cqmin 5cqmin, #FCFBF2; }
+.n-mintRound { --acc: #2F8A63; }
+.n-mintRound .paper { background: #E1F3E8; border-radius: 6cqmin; }
+
+/* 보드 스티커 */
+.sticker { position: absolute; width: var(--sz, 6cqmin); height: var(--sz, 6cqmin); translate: -50% -50%; rotate: var(--rot, 0deg); z-index: 3;
+  opacity: 0; animation: pop .5s cubic-bezier(.3,1.6,.5,1) forwards; animation-delay: var(--d, 1s); filter: drop-shadow(0 .3cqmin .4cqmin rgba(0,0,0,.12)); }
+@keyframes pop { from { opacity: 0; scale: .3; } to { opacity: 1; scale: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .c, .s-to, .s-from, .s-label, .s-title, .s-sub, .s-count, .s-join, .mcard { animation: rise .01s forwards; animation-delay: 0s !important; }
+  .c, .s-to, .s-from, .s-label, .s-title, .s-sub, .s-count, .s-join, .mcard, .sticker { animation: rise .01s forwards; animation-delay: 0s !important; }
   .slide { transition: opacity .3s; }
 }
