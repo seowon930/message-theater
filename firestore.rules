@@ -49,7 +49,7 @@ service cloud.firestore {
           && shortText(request.resource.data.from, 40)
           && shortText(request.resource.data.text, 400)
           && request.resource.data.text.size() > 0
-          && request.resource.data.theme in ['blossom', 'night', 'chalk', 'sky']
+          && request.resource.data.theme in ['blossom', 'night', 'chalk', 'sky', 'grad']
           && request.resource.data.at == request.time
           && request.resource.data.approved is bool
           && (isTeacher(code)

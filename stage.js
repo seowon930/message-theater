@@ -1,7 +1,7 @@
 // 상영 화면: 배경 입자 + 글자가 한 자씩 나타나는 메시지 슬라이드
-export const THEMES = ["blossom", "night", "chalk", "sky"];
-export const THEME_NAMES = { blossom: "벚꽃", night: "밤하늘", chalk: "칠판", sky: "종이비행기" };
-export const THEME_DOT = { blossom: "#F08FB1", night: "#3A3A86", chalk: "#2E5A47", sky: "#7FC4F0" };
+export const THEMES = ["blossom", "night", "chalk", "sky", "grad"];
+export const THEME_NAMES = { blossom: "벚꽃", night: "밤하늘", chalk: "칠판", sky: "종이비행기", grad: "졸업 축하" };
+export const THEME_DOT = { blossom: "#F08FB1", night: "#3A3A86", chalk: "#2E5A47", sky: "#7FC4F0", grad: "#E8B64A" };
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // 메시지 한 장의 시간 계산 (k: 속도 배율, 1 = 보통, 클수록 느림)
@@ -44,6 +44,7 @@ const NOTE_FAMILY = {
   sky: ["skyHoles", "grid", "whiteTorn", "mintRound"],
   chalk: ["lined", "dotCream", "kraftTorn", "grid"],
   night: ["lavFold", "sticky", "dotCream", "mintRound"],
+  grad: ["sticky", "whiteTorn", "beigeTorn", "lined"],
 };
 function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function seeded(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -126,7 +127,25 @@ class Particles {
     } else if (t === "sky") {
       for (let i = 0; i < 6; i++) add({ k: "cloud", x: R() * w, y: h * (.08 + R() * .7), s: (40 + R() * 50) * k + 12, vx: .08 + R() * .18 });
       for (let i = 0; i < 4; i++) add(this.plane(R() * w));
+    } else if (t === "grad") {
+      // 하늘로 던진 학사모 + 금색 꽃가루
+      const nc = Math.round(Math.min(10, Math.max(5, w / 160)));
+      for (let i = 0; i < nc; i++) add(this.cap(i / nc));
+      const n = Math.round(Math.min(90, area / 9000));
+      const cols = ["#FFD36E", "#FFE9A8", "#FFFFFF", "#9CC9FF", "#FF9EC4", "#F2B84B"];
+      for (let i = 0; i < n; i++) add({ k: "conf", x: R() * w, y: R() * h, cw: (3 + R() * 3) * Math.max(k, .6), ch: (7 + R() * 6) * Math.max(k, .6), vy: .5 + R() * 1.1, ph: R() * 6, r: R() * 6, vr: (R() - .5) * .08, col: cols[i % cols.length] });
     }
+  }
+  cap(spread) {
+    // 아래에서 위로 던져졌다가 중력으로 떨어짐 (spread: 처음 화면에 골고루 흩어 두기)
+    const k = Math.min(this.w, this.h) / 600, R = Math.random;
+    const c = { k: "cap", x: this.w * (.08 + R() * .84), y: this.h + 40, vx: (R() - .5) * 1.6, vy: -(7.5 + R() * 3.5) * Math.max(Math.sqrt(this.h / 600), .55), g: .11 * Math.max(Math.sqrt(this.h / 600), .55),
+      s: (36 + R() * 22) * Math.max(k, .45), r: (R() - .5) * .6, vr: (R() - .5) * .07, wait: 0 };
+    if (spread != null) { // 처음엔 이미 날아가는 중인 것처럼
+      const steps = Math.floor(spread * 160 + R() * 40);
+      for (let i = 0; i < steps; i++) { c.x += c.vx; c.y += c.vy; c.vy += c.g; c.r += c.vr; }
+    }
+    return c;
   }
   plane(x0) {
     const k = Math.min(this.w, this.h) / 600, R = Math.random;
@@ -162,6 +181,30 @@ class Particles {
         p.x += p.vx * f; if (p.x - p.s * 2 > w) p.x = -p.s * 2;
         x.globalAlpha = Math.max(0, p.a) * .7; x.fillStyle = "#FFFFFF"; x.beginPath();
         x.arc(p.x, p.y, p.s * .55, 0, 6.283); x.arc(p.x + p.s * .5, p.y - p.s * .25, p.s * .6, 0, 6.283); x.arc(p.x + p.s * 1.05, p.y, p.s * .5, 0, 6.283); x.arc(p.x + p.s * .5, p.y + p.s * .1, p.s * .5, 0, 6.283); x.fill();
+      } else if (p.k === "cap") {
+        if (p.wait > 0) { p.wait -= f; continue; }
+        p.x += p.vx * f; p.y += p.vy * f; p.vy += p.g * f; p.r += p.vr * f;
+        if (p.vy > 0 && p.y > h + 60) { if (!p.dying) Object.assign(p, this.cap(), { wait: Math.random() * 90 }); continue; }
+        const s = p.s; x.save(); x.translate(p.x, p.y); x.rotate(p.r);
+        // 모자 아래 부분
+        x.beginPath(); x.moveTo(-s * .52, s * .05); x.lineTo(s * .52, s * .05); x.lineTo(s * .44, s * .55); x.quadraticCurveTo(0, s * .7, -s * .44, s * .55); x.closePath();
+        x.fillStyle = "#1E2340"; x.fill(); x.strokeStyle = "rgba(255,214,120,.45)"; x.lineWidth = Math.max(1, s * .035); x.stroke();
+        // 사각 판 (살짝 기울어진 마름모)
+        x.beginPath(); x.moveTo(0, -s * .42); x.lineTo(s, 0); x.lineTo(0, s * .42); x.lineTo(-s, 0); x.closePath();
+        const bg = x.createLinearGradient(-s, -s * .4, s, s * .4); bg.addColorStop(0, "#3A4170"); bg.addColorStop(1, "#11152A");
+        x.fillStyle = bg; x.fill(); x.strokeStyle = "rgba(255,220,140,.8)"; x.lineWidth = Math.max(1.2, s * .05); x.stroke();
+        // 단추와 술
+        x.fillStyle = "#FFCF5A"; x.beginPath(); x.arc(0, 0, s * .07, 0, 6.283); x.fill();
+        const sw = Math.sin(t * 3 + p.x * .01) * s * .08;
+        x.strokeStyle = "#FFCF5A"; x.lineWidth = Math.max(1.2, s * .06); x.lineCap = "round";
+        x.beginPath(); x.moveTo(0, 0); x.lineTo(s * .62, s * .14); x.lineTo(s * .62 + sw, s * .72); x.stroke();
+        x.fillStyle = "#FFCF5A"; x.fillRect(s * .62 + sw - s * .06, s * .68, s * .12, s * .2);
+        x.restore();
+      } else if (p.k === "conf") {
+        p.y += p.vy * f; p.x += Math.sin(t * 1.6 + p.ph) * .5 * f; p.r += p.vr * f;
+        if (p.y > h + 12) { p.y = -12; p.x = Math.random() * w; }
+        x.save(); x.translate(p.x, p.y); x.rotate(p.r); x.scale(1, Math.cos(t * 3 + p.ph));
+        x.fillStyle = p.col; x.fillRect(-p.cw / 2, -p.ch / 2, p.cw, p.ch); x.restore();
       } else if (p.k === "plane") {
         p.x += p.vx * f; p.y += (p.vy + Math.sin(t * 1.5 + p.ph) * .25) * f;
         if (!p.dying && (p.x > w + 40 || p.y < -40)) Object.assign(p, this.plane(-40));
