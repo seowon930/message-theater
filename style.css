@@ -1,3 +1,10 @@
+/* 이름(To./From.) 글씨: 그리운 프롬솔 — 눈누 공식 웹폰트, 웹 사용 허용 */
+@font-face {
+  font-family: "DearFromsol";
+  src: url("https://cdn.jsdelivr.net/gh/Project-Noonnu/2607161334@griun-fromsol-rg/griun-fromsol-rg/Griun_Fromsol-Rg.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
 /* 우리 반 메시지 상영관 — 화면 디자인 */
 :root {
   --bg: #F3F5F9; --surface: #FFFFFF; --line: #DCE1EA; --fg: #1B2130; --muted: #5D6679;
@@ -5,6 +12,7 @@
   --f-display: "Gowun Batang", "Noto Serif KR", "Batang", serif;
   --f-body: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --f-hand: "Nanum Pen Script", "Gowun Batang", cursive;
+  --f-name: "DearFromsol", "Nanum Pen Script", cursive;
   --f-note: "Gaegu", "Nanum Pen Script", "Gowun Dodum", cursive;
   --f-mono: "JetBrains Mono", ui-monospace, "Consolas", monospace;
   color-scheme: light;
@@ -142,11 +150,11 @@ fieldset { border: 0; padding: 0; margin: 0; }
 .stage[data-theme="chalk"] .slide { --s-fg: #F3F1E6; --s-acc: #F5E27A; --s-msg: var(--f-hand); --s-shadow: 0 0 2px rgba(255,255,255,.35); }
 .stage[data-theme="sky"] .slide { --s-fg: #13305A; --s-acc: #E0584E; --s-msg: var(--f-display); --s-shadow: 0 1px 0 rgba(255,255,255,.7); }
 .slide { color: var(--s-fg); text-shadow: var(--s-shadow); }
-.s-to { font-family: var(--f-hand); font-size: 8.5cqmin; line-height: 1; color: var(--s-acc); }
+.s-to { font-family: var(--f-name); font-size: 8.5cqmin; line-height: 1; color: var(--s-acc); }
 .s-to small, .s-from small { font-size: .62em; opacity: .8; margin-right: .25em; }
 .s-msg { margin: 0; font-family: var(--s-msg); font-size: var(--fs, 6cqmin); line-height: 1.6; word-break: keep-all; overflow-wrap: anywhere; text-wrap: pretty; }
 .stage[data-theme="chalk"] .s-msg { line-height: 1.35; }
-.s-from { align-self: flex-end; font-family: var(--f-hand); font-size: 7.2cqmin; line-height: 1; }
+.s-from { align-self: flex-end; font-family: var(--f-name); font-size: 7.2cqmin; line-height: 1; }
 .w { display: inline-block; white-space: nowrap; }
 .c, .s-to, .s-from, .s-label, .s-title, .s-sub, .s-count, .s-join { opacity: 0; animation: rise .9s cubic-bezier(.2,.7,.2,1) forwards; animation-delay: var(--d, 0s); }
 .c { display: inline-block; animation-name: ink; animation-duration: .7s; }
